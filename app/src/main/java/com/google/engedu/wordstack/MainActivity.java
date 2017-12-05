@@ -19,6 +19,7 @@ import android.content.res.AssetManager;
 import android.graphics.Color;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Pair;
 import android.view.DragEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -37,14 +38,16 @@ import java.util.Stack;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int WORD_LENGTH = 5;
+    private static final int WORD_LENGTH = 3;
     public static final int LIGHT_BLUE = Color.rgb(176, 200, 255);
     public static final int LIGHT_GREEN = Color.rgb(200, 255, 200);
     private ArrayList<String> words = new ArrayList<>();
     private Random random = new Random();
     private StackedLayout stackedLayout;
     private String word1, word2;
-    private Stack<LetterTile> placedTiles = new Stack<>();
+    //private Stack<LetterTile> placedTiles = new Stack<>();
+    private Stack<Pair<LetterTile, ViewGroup>> placedTiles = new Stack<>();
+    //private int undoIndex;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
                     messageBox.setText(word1 + " " + word2);
                 }
 
-                placedTiles.push(tile);
+                //placedTiles.push(tile);
 
                 return true;
             }
@@ -121,17 +124,103 @@ public class MainActivity extends AppCompatActivity {
                 case DragEvent.ACTION_DROP:
                     // Dropped, reassign Tile to the target Layout
                     LetterTile tile = (LetterTile) event.getLocalState();
+                    ViewGroup parent = (ViewGroup) tile.getParent();
+                    /*if (parent instanceof StackedLayout) {
+                        undoIndex = 0;
+                    } else {
+                        undoIndex = tile.getIndex().peek();
+                    }*/
+                    //tile.setIndex(undoIndex);
                     tile.moveToViewGroup((ViewGroup) v);
-                    if (stackedLayout.empty()) {
+                    if (stackedLayout.empty() && checkWin()) {
                         TextView messageBox = (TextView) findViewById(R.id.message_box);
                         messageBox.setText(word1 + " " + word2);
                     }
 
-                    placedTiles.add(tile);
+                    //placedTiles.push(tile);
+                    //ViewGroup word1Layout = (ViewGroup) findViewById(R.id.word1);
+                    //ViewGroup word2Layout = (ViewGroup) findViewById(R.id.word2);
+                    tile.setIndex(((ViewGroup) v).getChildCount() - 1);
+                    if (parent instanceof StackedLayout) {
+                        placedTiles.add(Pair.create(tile, (ViewGroup) stackedLayout));
+                    } else {
+                        /*if (v.getId() == R.id.word1) {
+                            placedTiles.add(Pair.create(tile, word2Layout));
+                            updateViewAfterMove(word2Layout, word1Layout, tile, undoIndex);
+                        } else if (v.getId() == R.id.word2) {
+                            placedTiles.add(Pair.create(tile, word1Layout));
+                            updateViewAfterMove(word1Layout, word2Layout, tile, undoIndex);
+                        }*/
+                        placedTiles.add(Pair.create(tile, parent));
+                        //updateViewAfterMove(parent, (ViewGroup) v, tile, undoIndex);
+                        updateViewAfterMove();
+                    }
 
                     return true;
             }
             return false;
+        }
+    }
+
+    private boolean checkWin() {
+        ViewGroup word1Layout = (ViewGroup) findViewById(R.id.word1);
+        ViewGroup word2Layout = (ViewGroup) findViewById(R.id.word2);
+        String word1View = "", word2View = "";
+
+        for (int i = 0; i < word1Layout.getChildCount(); i++) {
+            word1View += ((LetterTile) word1Layout.getChildAt(i)).getLetter();
+        }
+        for (int i = 0; i < word2Layout.getChildCount(); i++) {
+            word2View += ((LetterTile) word2Layout.getChildAt(i)).getLetter();
+        }
+
+        if (word1View.length() == WORD_LENGTH && word2View.length() == WORD_LENGTH) {
+            if (word1View.equals(word1) && word2View.equals(word2)) {
+                Toast.makeText(MainActivity.this, "You got it!", Toast.LENGTH_LONG).show();
+                return true;
+            }
+            if (words.contains(word1View) && words.contains(word2View)) {
+                Toast.makeText(MainActivity.this, "You nailed it!", Toast.LENGTH_LONG).show();
+                return true;
+            }
+        }
+
+        TextView messageBox = (TextView) findViewById(R.id.message_box);
+        messageBox.setText("Try again.");
+        return false;
+    }
+
+    //buggy update method
+    private void updateViewAfterMove(ViewGroup sourceView, ViewGroup targetView, LetterTile currentTile, int indexBefore) {
+        for (int i = indexBefore; i < sourceView.getChildCount(); i++) {
+            Stack<Integer> sourceIndex = ((LetterTile) sourceView.getChildAt(i)).getIndex();
+            int poppedIndex = sourceIndex.pop();
+            sourceIndex.push(poppedIndex - 1);
+        }
+
+        int currentIndex = currentTile.getIndex().peek();
+        for (int i = currentIndex + 1; i < targetView.getChildCount(); i++) {
+            Stack<Integer> targetIndex = ((LetterTile) targetView.getChildAt(i)).getIndex();
+            int poppedIndex = targetIndex.pop();
+            targetIndex.push(poppedIndex + 1);
+        }
+    }
+
+    //new update method
+    private void updateViewAfterMove() {
+        ViewGroup word1LinearLayout = (ViewGroup) findViewById(R.id.word1);
+        ViewGroup word2LinearLayout = (ViewGroup) findViewById(R.id.word2);
+
+        for(int i = 0; i < word1LinearLayout.getChildCount(); i++) {
+            Stack<Integer> sourceIndex = ((LetterTile) word1LinearLayout.getChildAt(i)).getIndex();
+            sourceIndex.pop();
+            sourceIndex.push(i);
+        }
+
+        for(int i = 0; i < word2LinearLayout.getChildCount(); i++) {
+            Stack<Integer> sourceIndex = ((LetterTile) word2LinearLayout.getChildAt(i)).getIndex();
+            sourceIndex.pop();
+            sourceIndex.push(i);
         }
     }
 
@@ -180,7 +269,25 @@ public class MainActivity extends AppCompatActivity {
 
     public boolean onUndo(View view) {
         if (!placedTiles.empty()) {
-            placedTiles.pop().moveToViewGroup(stackedLayout);
+            //placedTiles.pop().moveToViewGroup(stackedLayout);
+            Pair<LetterTile, ViewGroup> popped = placedTiles.pop();
+            //int indexBefore = popped.first.getIndex().peek();
+            //ViewGroup parent = (ViewGroup) popped.first.getParent();
+            popped.first.undoViewGroup(popped.second);
+
+            /*ViewGroup word1Layout = (ViewGroup) findViewById(R.id.word1);
+            ViewGroup word2Layout = (ViewGroup) findViewById(R.id.word2);
+            if (popped.second.getId() == R.id.word1) {
+                updateViewAfterMove(word2Layout, word1Layout, popped.first, indexBefore);
+            }
+            if (popped.second.getId() == R.id.word2) {
+                updateViewAfterMove(word1Layout, word2Layout, popped.first, indexBefore);
+            }*/
+
+            if (!(popped.second instanceof StackedLayout)) {
+                //updateViewAfterMove(parent, popped.second, popped.first, indexBefore);
+                updateViewAfterMove();
+            }
         }
 
         return true;

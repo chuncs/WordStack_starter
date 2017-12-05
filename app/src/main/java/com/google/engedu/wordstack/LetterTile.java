@@ -25,21 +25,37 @@ import android.view.ViewParent;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.Stack;
+
 public class LetterTile extends TextView {
 
     public static final int TILE_SIZE = 100;
     private Character letter;
     private boolean frozen;
+    private Stack<Integer> index;
 
     public LetterTile(Context context, Character letter) {
         super(context);
         this.letter = letter;
+        index = new Stack<>();
         setText(letter.toString());
         setTextAlignment(TEXT_ALIGNMENT_CENTER);
         setHeight(TILE_SIZE);
         setWidth(TILE_SIZE);
         setTextSize(30);
         setBackgroundColor(Color.rgb(255, 255, 200));
+    }
+
+    public Character getLetter() {
+        return letter;
+    }
+
+    public Stack<Integer> getIndex() {
+        return index;
+    }
+
+    public void setIndex(int index) {
+        this.index.push(index);
     }
 
     public void moveToViewGroup(ViewGroup targetView) {
@@ -53,7 +69,12 @@ public class LetterTile extends TextView {
         } else {
             ViewGroup owner = (ViewGroup) parent;
             owner.removeView(this);
-            ((StackedLayout) targetView).push(this);
+            targetView.addView(this);
+            /*if (owner.getId() == R.id.word1 || owner.getId() == R.id.word2) {
+                targetView.addView(this);
+            } else {
+                ((StackedLayout) targetView).push(this);
+            }*/
             unfreeze();
         }
     }
@@ -68,9 +89,20 @@ public class LetterTile extends TextView {
 
     @Override
     public boolean onTouchEvent(MotionEvent motionEvent) {
-        if (!frozen && motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
+        if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
             return startDrag(ClipData.newPlainText("", ""), new View.DragShadowBuilder(this), this, 0);
         }
         return super.onTouchEvent(motionEvent);
+    }
+
+    public void undoViewGroup(ViewGroup targetView) {
+        ViewGroup owner = (ViewGroup) getParent();
+        owner.removeView(this);
+        index.pop();
+        if (targetView.getId() == R.id.word1 || targetView.getId() == R.id.word2) {
+            targetView.addView(this, index.peek());
+        } else {
+            ((StackedLayout) targetView).push(this);
+        }
     }
 }
